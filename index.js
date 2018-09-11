@@ -51,8 +51,8 @@ init = (leagueId, yearToStart, cb) => { // TODO: Make it so we're not requesting
           matchupPeriod++;
 
           endpoints.forEach((endpoint) => {
-            console.log('Deep loop on', endpoint, leagueId, season, matchupPeriod)
-            // executeGetting(endpoint, leagueId, season, matchupPeriod);
+            //console.log('Deep loop on', endpoint, leagueId, season, matchupPeriod)
+              executeGetting(endpoint, leagueId, season, matchupPeriod);
           })
         }
         season++
@@ -71,17 +71,16 @@ getUrl = (endpoint, leagueId, season, matchupPeriod) => {
 };
 
 executeGetting = (endpoint, leagueId, season, matchupPeriod) => {
-  console.log('executing getting')
-  axios.get('http://games.espn.com/ffl/api/v2/', {
+  console.log('executing getting against', endpoint, season, matchupPeriod)
+  axios.get('http://games.espn.com/ffl/api/v2/'+endpoint, {
     params: {
-      endpoint: endpoint,
       leagueId: leagueId,
-      season: season,
-      matchupPeriod: matchupPeriod,
+      seasonId: season,
+      matchupPeriodId: matchupPeriod,
     }
   })
     .then((response) => {
-      console.log('recieved response')
+      console.log('response got!')
       let fileName = leagueId+'-'+season+'-'+matchupPeriod+'-'+endpoint+'.log.json';
       let writeStream = fs.createWriteStream(fileName);
       writeStream.write(response.data);
