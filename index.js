@@ -70,6 +70,7 @@ getUrl = (endpoint, leagueId, season, matchupPeriod) => {
     + '&matchupPeriodId=' + matchupPeriod
 };
 
+// TODO NEXT - Write to file structure
 executeGetting = (endpoint, leagueId, season, matchupPeriod) => {
   console.log('executing getting against', endpoint, season, matchupPeriod)
   axios.get('http://games.espn.com/ffl/api/v2/'+endpoint, {
@@ -80,10 +81,9 @@ executeGetting = (endpoint, leagueId, season, matchupPeriod) => {
     }
   })
     .then((response) => {
-      console.log('response got!')
       let fileName = leagueId+'-'+season+'-'+matchupPeriod+'-'+endpoint+'.log.json';
       let writeStream = fs.createWriteStream(fileName);
-      writeStream.write(response.data);
+      writeStream.write(JSON.stringify(response.data));
       writeStream.on('finish', () => {
         console.log('finished writing', fileName)
         writeStream.end();
