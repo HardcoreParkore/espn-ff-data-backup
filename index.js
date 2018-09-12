@@ -70,7 +70,6 @@ getUrl = (endpoint, leagueId, season, matchupPeriod) => {
     + '&matchupPeriodId=' + matchupPeriod
 };
 
-// TODO NEXT - Write to file structure
 executeGetting = (endpoint, leagueId, season, matchupPeriod) => {
   console.log('executing getting against', endpoint, season, matchupPeriod)
   axios.get('http://games.espn.com/ffl/api/v2/'+endpoint, {
@@ -80,23 +79,49 @@ executeGetting = (endpoint, leagueId, season, matchupPeriod) => {
       matchupPeriodId: matchupPeriod,
     }
   })
-    .then((response) => {
-      let fileName = leagueId+'-'+season+'-'+matchupPeriod+'-'+endpoint+'.log.json';
-      let writeStream = fs.createWriteStream(fileName);
-      writeStream.write(JSON.stringify(response.data));
-      writeStream.on('finish', () => {
-        console.log('finished writing', fileName)
-        writeStream.end();
-      });
-      // console.log(response)
-    })
-    .catch((error) => {
-      console.warn(error);
-    })
-    .then(() => {
-      // execute next call?
+  .then((response) => {
+    let filename = endpoint+'-'+season+'-'+matchupPeriod+'.json';
+    let topLevelDir = 'backup-'+leagueId+'/'+season+'/'
+    let writeStream = fs.createWriteStream(path);
+    writeStream.write(JSON.stringify(response.data));
+    writeStream.on('finish', () => {
+      console.log('finished writing', path)
+      writeStream.end();
     });
+    // console.log(response)
+  })
+  .catch((error) => {
+    console.warn(error);
+  })
+  .then(() => {
+    // execute next call?
+  });
+};
+
+createFilesIfNotExists = (endpoint, leagueId, season, matchupPeriod) => {
+  ensureExists('./backup-'+leagueId+'/test/test', (err) => {
+    console.log('done', err)
+    if(err) {
+      fs.mkdir()
+    }
+  })
 };
 
 
-init(277531, 2017, () => {console.log('DonE!')});
+/* Adapted from SOF post: https://stackoverflow.com/a/21196961 */
+ensureExists = (path, mask, cb) => {
+  if (typeof mask == 'function') { // allow the `mask` parameter to be optional
+    cb = mask;
+    mask = 484;
+  };
+  fs.mkdir(path, mask, function(err) {
+    if (err) {
+      if (err.code == 'EEXIST') cb(null); // ignore the error if the folder already exists
+      else cb(err); // something else went wrong
+    } else cb(null); // successfully created folder
+  });
+}
+
+
+//init(277531, 2017, () => {console.log('DonE!')});
+createFilesIfNotExists(null, 10);
