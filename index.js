@@ -16,8 +16,9 @@ schedule
 /*
 If you exceed the greatest matchupPeriodId available - the api will return the largest id available (so, basically week 16)
 */
-let axios = require('axios');
-let fs = require('fs');
+const axios = require('axios');
+const fs = require('fs');
+const path = require('path');
 
 let endpoints = [
     'leagueSettings',
@@ -102,26 +103,40 @@ createFilesIfNotExists = (endpoint, leagueId, season, matchupPeriod) => {
   ensureExists('./backup-'+leagueId+'/test/test', (err) => {
     console.log('done', err)
     if(err) {
-      fs.mkdir()
+      fs.mkdir('./backup-'+leagueId+'/test/test')
     }
   })
 };
 
 
-/* Adapted from SOF post: https://stackoverflow.com/a/21196961 */
-ensureExists = (path, mask, cb) => {
-  if (typeof mask == 'function') { // allow the `mask` parameter to be optional
-    cb = mask;
-    mask = 484;
-  };
-  fs.mkdir(path, mask, function(err) {
-    if (err) {
-      if (err.code == 'EEXIST') cb(null); // ignore the error if the folder already exists
-      else cb(err); // something else went wrong
-    } else cb(null); // successfully created folder
-  });
-}
+// Taken from SOF: https://stackoverflow.com/a/31645803
+ mkDirByPathSync = (targetDir, { isRelativeToScript = false } = {}) => {
+  const sep = path.sep;
+  const initDir = path.isAbsolute(targetDir) ? sep : '';
+  const baseDir = isRelativeToScript ? __dirname : '.';
 
+  return targetDir.split(sep).reduce((parentDir, childDir) => {
+    const curDir = path.resolve(baseDir, parentDir, childDir);
+    try {
+      fs.mkdirSync(curDir);
+    } catch (err) {
+      if (err.code === 'EEXIST') { // curDir already exists!
+        return curDir;
+      }
 
-//init(277531, 2017, () => {console.log('DonE!')});
-createFilesIfNotExists(null, 10);
+      // To avoid `EISDIR` error on Mac and `EACCES`-->`ENOENT` and `EPERM` on Windows.
+      if (err.code === 'ENOENT') { // Throw the original parentDir error on curDir `ENOENT` failure.
+        throw new Error(`EACCES: permission denied, mkdir '${parentDir}'`);
+      }
+
+      const caughtErr = ['EACCES', 'EPERM', 'EISDIR'].indexOf(err.code) > -1;
+      if (!caughtErr || caughtErr && targetDir === curDir) {
+        throw err; // Throw if it's just the last created dir.
+      }
+    }
+
+    return curDir;
+  }, initDir);
+};
+
+init(277531, 2017, () => {console.log('DonE!')});
