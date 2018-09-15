@@ -16,6 +16,10 @@ schedule
 /*
 If you exceed the greatest matchupPeriodId available - the api will return the largest id available (so, basically week 16)
 */
+
+/*
+* Should I just append each term to one object then write? It seems smart....
+* */
 const axios = require('axios');
 const fs = require('fs');
 const path = require('path');
@@ -31,8 +35,13 @@ let endpoints = [
     'schedule',
   ];
 
-// TODO: Limit yearToStart to <= 2007
 init = (leagueId, yearToStart, cb) => { // TODO: Make it so we're not requesting this twice
+
+  if(yearToStart <= 2007) {
+    console.error("Can't grab anything before 2007 because the api has bad memory.")
+    return;
+  }
+
   axios.get('http://games.espn.com/ffl/api/v2/leagueSettings?leagueId=277531')
     .then((response) => {
       // Get a list of seasons for us to check for
@@ -46,14 +55,16 @@ init = (leagueId, yearToStart, cb) => { // TODO: Make it so we're not requesting
       For every endpoint IN every matchupPeriod IN every season
       * */
       while(season < 2018) { // TODO: Don't hardcode this year
-        let matchupPeriod = 12; // TODO: Reset to 0
+        let matchupPeriod = 0;
         console.log('upper level loop')
         while(matchupPeriod < finalRegularSeasonMatchupPeriodId) {
           matchupPeriod++;
 
           endpoints.forEach((endpoint) => {
             //console.log('Deep loop on', endpoint, leagueId, season, matchupPeriod)
-              executeGetting(endpoint, leagueId, season, matchupPeriod);
+            let topLevelDir = 'backup-'+leagueId+'/'+season+'/'+matchupPeriod+'/'
+            mkDirByPathSync(topLevelDir, {isRelativeToScript: true})
+              //executeGetting(endpoint, leagueId, season, matchupPeriod);
           })
         }
         season++
@@ -139,4 +150,4 @@ createFilesIfNotExists = (endpoint, leagueId, season, matchupPeriod) => {
   }, initDir);
 };
 
-init(277531, 2017, () => {console.log('DonE!')});
+init(277531, 2017, (er) => {console.log('DonE!', er)});
