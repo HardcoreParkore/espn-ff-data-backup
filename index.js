@@ -1,9 +1,9 @@
 /*
 leagueSettings
 playerInfo
-scoreboard
+scoreboard -- TODO: issues
 ? player/news
-recentActivity
+recentActivity -- TODO: issues
 leagueSchedules
 teams
 rosterInfo
@@ -14,7 +14,8 @@ schedule
 
 
 /*
-If you exceed the greatest matchupPeriodId available - the api will return the largest id available (so, basically week 16)
+If you exceed the greatest matchupPeriodId available - the api will return the largest id available (so, basically week 16+playoffs?)
+TODO: Please integration test this theory for every year
 */
 
 /*
@@ -27,8 +28,6 @@ const path = require('path');
 let endpoints = [
     'leagueSettings',
     'playerInfo',
-    'scoreboard',
-    'recentActivity',
     'leagueSchedules',
     'teams',
     'rosterInfo',
@@ -45,28 +44,29 @@ init = (leagueId, yearToStart, cb) => { // TODO: Make it so we're not requesting
   axios.get('http://games.espn.com/ffl/api/v2/leagueSettings?leagueId=277531')
     .then((response) => {
       // Get a list of seasons for us to check for
-      //let data = JSON.parse(response.data);
+      // TODO: Figure out how to parse amount of playoff games and add number to amount of weeks to loop through
+      // TODO: Retrieve this first for every season -- leagues can modify the amount of matchups per season
+      // TODO: Most leagues don't need settings checked for every week - but some probably do. Figure out how to handle this
       let finalRegularSeasonMatchupPeriodId = response.data.leaguesettings.finalRegularSeasonMatchupPeriodId;
       let season = yearToStart;
 
-
       /*
-      Nested loops:
-      For every endpoint IN every matchupPeriod IN every season
-      * */
+      Nested loops: For every endpoint IN every matchupPeriod IN every season
+      */
       while(season < 2018) { // TODO: Don't hardcode this year
-        let matchupPeriod = 0;
-        console.log('upper level loop')
-        while(matchupPeriod < finalRegularSeasonMatchupPeriodId) {
-          matchupPeriod++;
+        endpoints.forEach((endpoint) => {
+          let endpointData = {};
+          let matchupPeriod = 0;
+          while (matchupPeriod < finalRegularSeasonMatchupPeriodId) {
+            matchupPeriod++;
 
-          endpoints.forEach((endpoint) => {
-            //console.log('Deep loop on', endpoint, leagueId, season, matchupPeriod)
-            let topLevelDir = 'backup-'+leagueId+'/'+season+'/'+matchupPeriod+'/'
-            mkDirByPathSync(topLevelDir, {isRelativeToScript: true})
-              //executeGetting(endpoint, leagueId, season, matchupPeriod);
-          })
-        }
+            endpointData[matchupPeriod] = endpointData[matchupPeriod] ? endpointData[matchupPeriod] : {};
+            // For debugging w/o hitting API only
+            // console.log('Executing getting for endpoint:', endpoint, 'season:', season, 'matchupPeriod:' ,matchupPeriod);
+            endpointData[matchupPeriod] = executeGetting(endpoint, leagueId, season, matchupPeriod);
+          }
+          writeToFile(endpoint, leagueId, season, endpointData);
+        });
         season++
       }
       cb()
@@ -75,15 +75,24 @@ init = (leagueId, yearToStart, cb) => { // TODO: Make it so we're not requesting
 
 };
 
-getUrl = (endpoint, leagueId, season, matchupPeriod) => {
-  return 'http://games.espn.com/ffl/api/v2/' + endpoint
-    + '?leagueId=' + leagueId
-    + '&seasonId=' + season
-    + '&matchupPeriodId=' + matchupPeriod
+// TODO:NEXT - Data isn't getting written
+writeToFile = (endpoint, leagueId, season, data) => {
+  let filename = endpoint+'-'+season+'.json';
+  let topLevelDir = 'backup-'+leagueId+'/'+season+'/';
+
+  mkDirByPathSync(topLevelDir, {isRelativeToScript: true});
+
+  let writeStream = fs.createWriteStream(topLevelDir + filename);
+  writeStream.write(JSON.stringify(data));
+  writeStream.on('finish', () => {
+    console.log('finished writing', filename)
+    writeStream.end();
+  });
 };
 
+
 executeGetting = (endpoint, leagueId, season, matchupPeriod) => {
-  console.log('executing getting against', endpoint, season, matchupPeriod)
+  console.log('Retrieving data for endpoint:', endpoint, 'season:', season, 'matchupPeriod:' ,matchupPeriod);
   axios.get('http://games.espn.com/ffl/api/v2/'+endpoint, {
     params: {
       leagueId: leagueId,
@@ -92,33 +101,13 @@ executeGetting = (endpoint, leagueId, season, matchupPeriod) => {
     }
   })
   .then((response) => {
-    let filename = endpoint+'-'+season+'-'+matchupPeriod+'.json';
-    let topLevelDir = 'backup-'+leagueId+'/'+season+'/'
-    let writeStream = fs.createWriteStream(path);
-    writeStream.write(JSON.stringify(response.data));
-    writeStream.on('finish', () => {
-      console.log('finished writing', path)
-      writeStream.end();
-    });
-    // console.log(response)
+    return response.data;
   })
   .catch((error) => {
-    console.warn(error);
-  })
-  .then(() => {
-    // execute next call?
-  });
-};
-
-createFilesIfNotExists = (endpoint, leagueId, season, matchupPeriod) => {
-  ensureExists('./backup-'+leagueId+'/test/test', (err) => {
-    console.log('done', err)
-    if(err) {
-      fs.mkdir('./backup-'+leagueId+'/test/test')
-    }
+    console.warn('Error requesting data for', endpoint, leagueId, season, matchupPeriod, error);
+    return new Error('Botched request on endpoint');
   })
 };
-
 
 // Taken from SOF: https://stackoverflow.com/a/31645803
  mkDirByPathSync = (targetDir, { isRelativeToScript = false } = {}) => {
@@ -150,4 +139,4 @@ createFilesIfNotExists = (endpoint, leagueId, season, matchupPeriod) => {
   }, initDir);
 };
 
-init(277531, 2017, (er) => {console.log('DonE!', er)});
+init(277531, 2017, (er) => {console.log('Done!')});
