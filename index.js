@@ -27,11 +27,11 @@ const path = require('path');
 
 let endpoints = [
     'leagueSettings',
-    'playerInfo',
+    /*'playerInfo',
     'leagueSchedules',
     'teams',
     'rosterInfo',
-    'schedule',
+    'schedule',*/
   ];
 
 init = (leagueId, yearToStart, cb) => { // TODO: Make it so we're not requesting this twice
@@ -54,60 +54,76 @@ init = (leagueId, yearToStart, cb) => { // TODO: Make it so we're not requesting
       Nested loops: For every endpoint IN every matchupPeriod IN every season
       */
       while(season < 2018) { // TODO: Don't hardcode this year
+        let promises = [];
         endpoints.forEach((endpoint) => {
           let endpointData = {};
           let matchupPeriod = 0;
           while (matchupPeriod < finalRegularSeasonMatchupPeriodId) {
             matchupPeriod++;
 
-            endpointData[matchupPeriod] = endpointData[matchupPeriod] ? endpointData[matchupPeriod] : {};
+            //endpointData[matchupPeriod] = endpointData[matchupPeriod] ? endpointData[matchupPeriod] : {};
             // For debugging w/o hitting API only
             // console.log('Executing getting for endpoint:', endpoint, 'season:', season, 'matchupPeriod:' ,matchupPeriod);
-            endpointData[matchupPeriod] = executeGetting(endpoint, leagueId, season, matchupPeriod);
+            // endpointData[matchupPeriod] = executeGetting(endpoint, leagueId, season, matchupPeriod);
+            promises.push(executeGetting(endpoint, leagueId, season, matchupPeriod));
           }
+
+        Promise.all(promises).then((values) => {
+          values.forEach((v) => {
+              console.log('have value', v)
+              let MPID = v.matchupPeriodId;
+              endpointData[MPID] = v[MPID];
+          });
+            console.log('time to write to file', endpointData)
           writeToFile(endpoint, leagueId, season, endpointData);
         });
-        season++
+
+        });
+        season++;
       }
-      cb()
-  })
-
-
+        cb();
+    });
 };
-
-// TODO:NEXT - Data isn't getting written
-writeToFile = (endpoint, leagueId, season, data) => {
-  let filename = endpoint+'-'+season+'.json';
-  let topLevelDir = 'backup-'+leagueId+'/'+season+'/';
-
-  mkDirByPathSync(topLevelDir, {isRelativeToScript: true});
-
-  let writeStream = fs.createWriteStream(topLevelDir + filename);
-  writeStream.write(JSON.stringify(data));
-  writeStream.on('finish', () => {
-    console.log('finished writing', filename)
-    writeStream.end();
-  });
-};
-
 
 executeGetting = (endpoint, leagueId, season, matchupPeriod) => {
-  console.log('Retrieving data for endpoint:', endpoint, 'season:', season, 'matchupPeriod:' ,matchupPeriod);
-  axios.get('http://games.espn.com/ffl/api/v2/'+endpoint, {
-    params: {
-      leagueId: leagueId,
-      seasonId: season,
-      matchupPeriodId: matchupPeriod,
-    }
-  })
-  .then((response) => {
-    return response.data;
-  })
-  .catch((error) => {
-    console.warn('Error requesting data for', endpoint, leagueId, season, matchupPeriod, error);
-    return new Error('Botched request on endpoint');
-  })
+    console.log('Retrieving data for endpoint:', endpoint, 'season:', season, 'matchupPeriod:' ,matchupPeriod);
+    let promise = axios.get('http://games.espn.com/ffl/api/v2/'+endpoint, {
+        params: {
+            leagueId: leagueId,
+            seasonId: season,
+            matchupPeriodId: matchupPeriod,
+        }
+    })
+    .then((response) => {
+        return {
+            'matchupPeriodId': response.config.params.matchupPeriodId,
+            [response.config.params.matchupPeriodId]: {
+                'data': response.data
+            },
+        };
+    })
+    .catch((error) => {
+        console.warn('Error requesting data for', endpoint, leagueId, season, matchupPeriod, error);
+        return new Error('Botched request on endpoint');
+    });
+    return promise;
 };
+
+// TODO:NEXT - Implement promise/async
+writeToFile = (endpoint, leagueId, season, data) => {
+  let filename = season+'.json';
+  let topLevelDir = 'data';
+
+  mkDirByPathSync(topLevelDir, {isRelativeToScript: true})
+
+  let writeStream = fs.createWriteStream(topLevelDir + '/' + filename);
+  writeStream.on('finish', () => {
+    console.log('finished writing', filename)
+    writeStream.end('ending writestream');
+  });
+    writeStream.write(JSON.stringify(data));
+};
+
 
 // Taken from SOF: https://stackoverflow.com/a/31645803
  mkDirByPathSync = (targetDir, { isRelativeToScript = false } = {}) => {
