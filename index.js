@@ -27,8 +27,8 @@ const path = require('path');
 
 let endpoints = [
     'leagueSettings',
-    /*'playerInfo',
-    'leagueSchedules',
+    'playerInfo',
+    /*'leagueSchedules',
     'teams',
     'rosterInfo',
     'schedule',*/
@@ -55,8 +55,8 @@ init = (leagueId, yearToStart, cb) => { // TODO: Make it so we're not requesting
       */
       while(season < 2018) { // TODO: Don't hardcode this year
         let promises = [];
+        let endpointData = {};
         endpoints.forEach((endpoint) => {
-          let endpointData = {};
           let matchupPeriod = 0;
           while (matchupPeriod < finalRegularSeasonMatchupPeriodId) {
             matchupPeriod++;
@@ -68,17 +68,20 @@ init = (leagueId, yearToStart, cb) => { // TODO: Make it so we're not requesting
             promises.push(executeGetting(endpoint, leagueId, season, matchupPeriod));
           }
 
-        Promise.all(promises).then((values) => {
-          values.forEach((v) => {
-              console.log('have value', v)
-              let MPID = v.matchupPeriodId;
-              endpointData[MPID] = v[MPID];
-          });
-            console.log('time to write to file', endpointData)
-          writeToFile(endpoint, leagueId, season, endpointData);
         });
 
+        Promise.all(promises).then((values) => {
+            values.forEach((v) => {
+                console.log('have value', v)
+                let matchupPeriodId = v.matchupPeriodId;
+                let endpoint = v.endpoint;
+                endpointData[matchupPeriodId] = endpointData[matchupPeriodId] ? endpointData[matchupPeriodId] : {}; // if there is no matchupperiod, create it so we don't get undefined
+                endpointData[matchupPeriodId][endpoint] = v[matchupPeriodId]; 
+            });
+            console.log('time to write to file', endpointData)
+            writeToFile(leagueId, season, endpointData);
         });
+
         season++;
       }
         cb();
@@ -92,13 +95,15 @@ executeGetting = (endpoint, leagueId, season, matchupPeriod) => {
             leagueId: leagueId,
             seasonId: season,
             matchupPeriodId: matchupPeriod,
+            endpoint: endpoint,
         }
+        // Adding endpoint is a hack to access it later in the response. Bad idea, I know.
     })
     .then((response) => {
         return {
             'matchupPeriodId': response.config.params.matchupPeriodId,
-            [response.config.params.matchupPeriodId]: {
-                'data': response.data
+            'endpoint': response.config.params.endpoint,
+            [response.config.params.matchupPeriodId]: response.data
             },
         };
     })
@@ -110,7 +115,7 @@ executeGetting = (endpoint, leagueId, season, matchupPeriod) => {
 };
 
 // TODO:NEXT - Implement promise/async
-writeToFile = (endpoint, leagueId, season, data) => {
+writeToFile = (leagueId, season, data) => {
   let filename = season+'.json';
   let topLevelDir = 'data';
 
