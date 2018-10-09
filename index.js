@@ -1,4 +1,9 @@
 /*
+Lots of parsing utils can be found here
+https://github.com/jpmayer/fantasy-chrome-extension/blob/master/js/popup.js
+*/
+
+/*
 leagueSettings
 playerInfo
 scoreboard -- TODO: issues
@@ -14,27 +19,23 @@ schedule
 
 
 /*
-If you exceed the greatest matchupPeriodId available - the api will return the largest id available (so, basically week 16+playoffs?)
-TODO: Please integration test this theory for every year
+If you exceed the greatest matchupPeriodId available - the api will return the largest id available (so, basically week 16+playoffs?) TODO: Please integration test this theory for every year
 */
 
-/*
-* Should I just append each term to one object then write? It seems smart....
-* */
 const axios = require('axios');
 const fs = require('fs');
 const path = require('path');
 
 let endpoints = [
     'leagueSettings',
-    'playerInfo',
-    /*'leagueSchedules',
+    /*'playerInfo',
+    'leagueSchedules',
     'teams',
-    'rosterInfo',
+    // rosterInfo api didn't exist in 2015 && 2016
     'schedule',*/
   ];
 
-init = (leagueId, yearToStart, cb) => { // TODO: Make it so we're not requesting this twice
+init = (leagueId, yearToStart, cb) => { // TODO: Make it so we're not requesting this once for settings and once for data saving
 
   if(yearToStart <= 2007) {
     console.error("Can't grab anything before 2007 because the api has bad memory.")
@@ -47,6 +48,7 @@ init = (leagueId, yearToStart, cb) => { // TODO: Make it so we're not requesting
       // TODO: Figure out how to parse amount of playoff games and add number to amount of weeks to loop through
       // TODO: Retrieve this first for every season -- leagues can modify the amount of matchups per season
       // TODO: Most leagues don't need settings checked for every week - but some probably do. Figure out how to handle this
+      // The reason they might is that settings could have changed between weeks
       let finalRegularSeasonMatchupPeriodId = response.data.leaguesettings.finalRegularSeasonMatchupPeriodId;
       let season = yearToStart;
 
@@ -72,24 +74,21 @@ init = (leagueId, yearToStart, cb) => { // TODO: Make it so we're not requesting
 
         Promise.all(promises).then((values) => {
             values.forEach((v) => {
-                console.log('have value', v)
                 let matchupPeriodId = v.matchupPeriodId;
                 let endpoint = v.endpoint;
                 endpointData[matchupPeriodId] = endpointData[matchupPeriodId] ? endpointData[matchupPeriodId] : {}; // if there is no matchupperiod, create it so we don't get undefined
                 endpointData[matchupPeriodId][endpoint] = v[matchupPeriodId]; 
             });
-            console.log('time to write to file', endpointData)
             writeToFile(leagueId, season, endpointData);
         });
 
         season++;
       }
-        cb();
+      cb();
     });
 };
 
 executeGetting = (endpoint, leagueId, season, matchupPeriod) => {
-    console.log('Retrieving data for endpoint:', endpoint, 'season:', season, 'matchupPeriod:' ,matchupPeriod);
     let promise = axios.get('http://games.espn.com/ffl/api/v2/'+endpoint, {
         params: {
             leagueId: leagueId,
@@ -104,12 +103,11 @@ executeGetting = (endpoint, leagueId, season, matchupPeriod) => {
             'matchupPeriodId': response.config.params.matchupPeriodId,
             'endpoint': response.config.params.endpoint,
             [response.config.params.matchupPeriodId]: response.data
-            },
-        };
+            }
     })
     .catch((error) => {
         console.warn('Error requesting data for', endpoint, leagueId, season, matchupPeriod, error);
-        return new Error('Botched request on endpoint');
+        return new Error('Botched request on endpoint for season', season, 'matchupPeriod', matchupPeriod, 'and endpoint', endpoint, 'error:', error);
     });
     return promise;
 };
@@ -160,4 +158,4 @@ writeToFile = (leagueId, season, data) => {
   }, initDir);
 };
 
-init(277531, 2017, (er) => {console.log('Done!')});
+init(277531, 2015, (er) => {console.log('Done!')});
