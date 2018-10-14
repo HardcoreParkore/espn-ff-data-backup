@@ -17,75 +17,48 @@ schedule
 ? boxscore
 */
 
-
-/*
-If you exceed the greatest matchupPeriodId available - the api will return the largest id available (so, basically week 16+playoffs?) TODO: Please integration test this theory for every year
-*/
-
 const axios = require('axios');
 const fs = require('fs');
 const path = require('path');
 
 let endpoints = [
-    'leagueSettings',
-    /*'playerInfo',
-    'leagueSchedules',
     'teams',
-    // rosterInfo api didn't exist in 2015 && 2016
-    'schedule',*/
-  ];
+];
 
-init = (leagueId, yearToStart, cb) => { // TODO: Make it so we're not requesting this once for settings and once for data saving
+init = (leagueId, yearToStart, cb) => {
 
   if(yearToStart <= 2007) {
     console.error("Can't grab anything before 2007 because the api has bad memory.")
     return;
   }
 
-  axios.get('http://games.espn.com/ffl/api/v2/leagueSettings?leagueId=277531')
-    .then((response) => {
-      // Get a list of seasons for us to check for
-      // TODO: Figure out how to parse amount of playoff games and add number to amount of weeks to loop through
-      // TODO: Retrieve this first for every season -- leagues can modify the amount of matchups per season
-      // TODO: Most leagues don't need settings checked for every week - but some probably do. Figure out how to handle this
-      // The reason they might is that settings could have changed between weeks
-      let finalRegularSeasonMatchupPeriodId = response.data.leaguesettings.finalRegularSeasonMatchupPeriodId;
-      let season = yearToStart;
+  let season = yearToStart;
+  let endpointData = {};
 
-      /*
-      Nested loops: For every endpoint IN every matchupPeriod IN every season
-      */
-      while(season < 2018) { // TODO: Don't hardcode this year
-        let promises = [];
-        let endpointData = {};
-        endpoints.forEach((endpoint) => {
-          let matchupPeriod = 0;
-          while (matchupPeriod < finalRegularSeasonMatchupPeriodId) {
-            matchupPeriod++;
+  while(season <= 2018) { // TODO: Don't hardcode this year
+    let promise = retrieveTeamsData(leagueId, season)
+    promise.then((response) => {
+        writeToFile(response.seasonId, response.data)
+      });
+    season++
+  }
 
-            //endpointData[matchupPeriod] = endpointData[matchupPeriod] ? endpointData[matchupPeriod] : {};
-            // For debugging w/o hitting API only
-            // console.log('Executing getting for endpoint:', endpoint, 'season:', season, 'matchupPeriod:' ,matchupPeriod);
-            // endpointData[matchupPeriod] = executeGetting(endpoint, leagueId, season, matchupPeriod);
-            promises.push(executeGetting(endpoint, leagueId, season, matchupPeriod));
-          }
+  cb();
+};
 
-        });
-
-        Promise.all(promises).then((values) => {
-            values.forEach((v) => {
-                let matchupPeriodId = v.matchupPeriodId;
-                let endpoint = v.endpoint;
-                endpointData[matchupPeriodId] = endpointData[matchupPeriodId] ? endpointData[matchupPeriodId] : {}; // if there is no matchupperiod, create it so we don't get undefined
-                endpointData[matchupPeriodId][endpoint] = v[matchupPeriodId]; 
-            });
-            writeToFile(leagueId, season, endpointData);
-        });
-
-        season++;
-      }
-      cb();
-    });
+retrieveTeamsData = (leagueId, seasonId) => {
+  let promise = axios.get('http://games.espn.com/ffl/api/v2/teams', {
+    params: {
+      leagueId: leagueId,
+      seasonId: seasonId,
+    }
+  }).then((response) => {
+    return {
+      'seasonId': response.config.params.seasonId,
+      'data': response.data,
+    }
+  })
+  return promise;
 };
 
 executeGetting = (endpoint, leagueId, season, matchupPeriod) => {
@@ -103,7 +76,7 @@ executeGetting = (endpoint, leagueId, season, matchupPeriod) => {
             'matchupPeriodId': response.config.params.matchupPeriodId,
             'endpoint': response.config.params.endpoint,
             [response.config.params.matchupPeriodId]: response.data
-            }
+        }
     })
     .catch((error) => {
         console.warn('Error requesting data for', endpoint, leagueId, season, matchupPeriod, error);
@@ -112,8 +85,7 @@ executeGetting = (endpoint, leagueId, season, matchupPeriod) => {
     return promise;
 };
 
-// TODO:NEXT - Implement promise/async
-writeToFile = (leagueId, season, data) => {
+writeToFile = (season, data) => {
   let filename = season+'.json';
   let topLevelDir = 'data';
 
